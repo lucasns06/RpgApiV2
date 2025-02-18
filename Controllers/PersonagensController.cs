@@ -1,16 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RpgApi.Data;
 using RpgApi.Models;
+using RpgApiV2.Extensions;
 
 namespace RpgApi.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Jogador, Admin")]
     [ApiController]
     [Route("[controller]")]
     public class PersonagensController : ControllerBase
@@ -66,6 +68,7 @@ namespace RpgApi.Controllers
                 {
                     throw new Exception("Pontos de vida não pode ser maior que 100");
                 }
+                novoPersonagem.Usuario = _context.TB_USUARIOS.FirstOrDefault(uBusca => uBusca.Id == User.UsuarioId());
 
                 await _context.TB_PERSONAGENS.AddAsync(novoPersonagem);
                 await _context.SaveChangesAsync();
@@ -225,14 +228,16 @@ namespace RpgApi.Controllers
             }
         }
 
-        [HttpGet("GetByUser/{userId}")]
-        public async Task<IActionResult> GetByUserAsync(int userId)
+        [HttpGet("GetByUser")]
+        public async Task<IActionResult> GetByUserAsync()
         {
             try
             {
+                int id = int.Parse(User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value);
+
                 List<Personagem> lista = await _context.TB_PERSONAGENS
-                .Where(u => u.Usuario.Id == userId)
-                .ToListAsync();
+                .Where(u => u.Usuario.Id == id).ToListAsync();
+
                 return Ok(lista);
             }
             catch (System.Exception ex)
@@ -241,24 +246,23 @@ namespace RpgApi.Controllers
             }
         }
 
-        [HttpGet("GetByPerfil/{userId}")]
-        public async Task<IActionResult> GetByPerfilAsync(int userId)
+        [HttpGet("GetByPerfil")]
+        public async Task<IActionResult> GetByPerfilAsync()
         {
             try
             {
-                Usuario usuario = await _context.TB_USUARIOS
-                .FirstOrDefaultAsync(x => x.Id == userId);
                 List<Personagem> lista = new List<Personagem>();
-                if (usuario.Perfil == "Admin")
+
+                if (User.UsuarioPerfil() == "Admin")
                     lista = await _context.TB_PERSONAGENS.ToListAsync();
                 else
                     lista = await _context.TB_PERSONAGENS
-                    .Where(p => p.Usuario.Id == userId).ToListAsync();
+                            .Where(p => p.Usuario.Id == User.UsuarioId()).ToListAsync();
                 return Ok(lista);
             }
             catch (System.Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest(ex.Message + " - " + ex.InnerException);
             }
         }
 
